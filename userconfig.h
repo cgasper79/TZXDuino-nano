@@ -15,11 +15,6 @@
 #define LowWrite() {PORTB&=(~(1<<PORTB1));}
 #define HighWrite() {PORTB|=(1<<PORTB1);}
 #define chipSelect 10                       //Sd card chip select pin
-#elif defined(__SAMD21__)
-#define outputPin           7               // Audio Output PIN - Set accordingly to your hardware.
-#define LowWrite() {digitalWrite(outputPin, LOW);}
-#define HighWrite() {digitalWrite(outputPin, HIGH);}
-#define chipSelect 2                        //Sd card chip select pin
 #endif
 
 //#define BUTTONS_ADC
@@ -50,21 +45,8 @@
 
 //#define SERIALSCREEN  1           /*For Testing purposes only */
 
-#define LCDSCREEN16x2   1         /*Set if you are using a 1602 LCD screen */
-#define LCD_I2C_ADDR    0x27      /*Set the i2c address of your 1602LCD usually 0x27 or 0x3f*/
-
-//#define RGBLCD         1
-
-//#define OLED1306       1          /*Defines if you are using a 128x64 or 128x32 OLED screen */
-//#define OLED1306_0.91  1          /*Defines if you are using a 0.91" 128x32 screen.*/
-//#define OLED1306_1.3   1          /* Use this line as well if you have a 1.3" OLED screen */
-//#define SPECFONT       1          /* Use this line if you want to use the Spectrum Font by Brendan Alford
-
-//#define P8544   1                 /*Set if you are using an 84x48 PCD8544 screen */
-
-//#define TZXDuino_Logo  1
-
-//#define LCD_USE_1602_LCD_MODULE  1 /*Not used at the moment */
+#define LCDSCREEN20x4   1         /*Set if you are using a 2004 LCD screen */
+#define LCD_I2C_ADDR    0x27      /*Set the i2c address of your 2004LCD usually 0x27 or 0x3f*/
 
 // filesystem options
 #define maxFilenameLength   100       //Maximum length for long filename support (ideally as large as possible to support very long filenames)

@@ -1036,7 +1036,7 @@ void TZXProcess() {
           //stopFile();
           //ID Not Recognised - Fall back if non TZX file or unrecognised ID occurs
           
-           #ifdef LCDSCREEN16x2
+           #ifdef LCDSCREEN20x4
             lcd.clear();
             lcd.setCursor(0,0);
             lcd.print("ID? ");
@@ -1045,34 +1045,6 @@ void TZXProcess() {
             lcd.setCursor(0,1);
             lcd.print(String(bytesRead,HEX) + " - L: " + String(loopCount, DEC));
           #endif
-
-          #ifdef RGBLCD
-            lcd.clear();
-            lcd.setCursor(0,0);
-            lcd.print("ID? ");
-            lcd.setCursor(4,0);
-            lcd.print(String(currentID, HEX));
-            lcd.setCursor(0,1);
-            lcd.print(String(bytesRead,HEX) + " - L: " + String(loopCount, DEC));
-          #endif
-
-          #ifdef OLED1306
-              printtextF(PSTR("ID? "),0);
-              itoa(currentID,PlayBytes,16);sendStrXY(PlayBytes,4,0);
-              itoa(bytesRead,PlayBytes,16);strcat_P(PlayBytes,PSTR(" - L: "));printtext(PlayBytes,1);
-              itoa(loopCount,PlayBytes,10);sendStrXY(PlayBytes,10,1);
-
-          #endif 
-          
-          #ifdef P8544             
-            lcd.clear();
-            lcd.setCursor(0,0);
-            lcd.print("ID? ");
-            lcd.setCursor(4,0);
-            lcd.print(String(currentID, HEX));
-            lcd.setCursor(0,1);
-            lcd.print(String(bytesRead,HEX) + " - L: " + String(loopCount, DEC));
-          #endif  
   
           delay(5000);
           stopFile();

@@ -73,7 +73,8 @@
  *               
  *                1.18 Added a delay to IDCHUNKEOF before the stopFile(); as it was cutting off the last few milliseconds of playback on some UEF files.
  *                     Jungle Journey for Acorn Electron is now working.
- *                       
+ * 
+ *                1.21 Adapted to LCD20x4 by @cgasper79                      
  *                
   */
 
@@ -85,60 +86,15 @@
 #include "version.h"
 
 
-#ifdef LCDSCREEN16x2
+#ifdef LCDSCREEN20x4
   #include <Wire.h> 
   #include <LiquidCrystal_I2C.h>
-  LiquidCrystal_I2C lcd(LCD_I2C_ADDR,16,2); // set the LCD address to 0x27 for a 16 chars and 2 line display
+  LiquidCrystal_I2C lcd(LCD_I2C_ADDR,20,4); // set the LCD address to 0x27 for a 16 chars and 2 line display
   char indicators[] = {'|', '/', '-',0};
-  uint8_t SpecialChar [8]= { 0x00, 0x10, 0x08, 0x04, 0x02, 0x01, 0x00, 0x00 };
+  uint8_t SpecialChar [8]= { 0x00, 0x0E, 0x1E, 0x1F, 0x15, 0x1F, 0x0A, 0x00 };
 #endif
 
-#ifdef RGBLCD
-  #include <Wire.h>
-  #include "rgb_lcd.h"
-  const int colorR = 200;
-  const int colorG = 000;
-  const int colorB = 000;
 
-  rgb_lcd lcd; 
-  char indicators[] = {'|', '/', '-',0};
-  uint8_t SpecialChar [8]= { 0x00, 0x10, 0x08, 0x04, 0x02, 0x01, 0x00, 0x00 };
-#endif
-
-#ifdef OLED1306 
-  #include <Wire.h> 
-  
-  char line0[17];
-  char line1[17];
-  char lineclr[17];
-  char indicators[] = {'|', '/', '-',92}; 
-#endif
-
-#ifdef P8544
-  #include <pcd8544.h>
-  #define ADMAX 1023
-  #define ADPIN 0
-  #include <avr/pgmspace.h>
-  byte dc_pin = 5;
-  byte reset_pin = 3;
-  byte cs_pin = 4;
-  pcd8544 lcd(dc_pin, reset_pin, cs_pin);
-  char indicators[] = {'|', '/', '-',0};
-  uint8_t SpecialChar [8]= { 0x00, 0x10, 0x08, 0x04, 0x02, 0x01, 0x00, 0x00 };
-  #define backlight_pin 2
-  
-  const byte Play [] PROGMEM = {
-    0x00, 0x7f, 0x3e, 0x1c, 0x08, 0x00, 0x00
-  };
-
-  const byte Paused [] PROGMEM = {
-    0x00, 0x7f, 0x7f, 0x00, 0x7f, 0x7f, 0x00
-  };
-
-  const byte Stop [] PROGMEM = {
-    0x7e, 0x7e, 0x7e, 0x7e, 0x7e, 0x7e, 0x7e
-  };
-#endif
 
 SDTYPE sd;                          // Initialise SD card 
 FILETYPE entry, dir, tmpdir;        // SD card current file (=entry) and current directory (=dir) objects, plus one temporary
@@ -150,7 +106,7 @@ uint16_t prevSubDirIndex[nMaxPrevSubDirs];  //History when stepping into subdire
 byte subdir = 0;
 unsigned long filesize;             // filesize used for dimensioning AY files
 
-#define scrollSpeed   250           //text scroll delay
+#define scrollSpeed   800           //text scroll delay
 #define scrollWait    3000          //Delay before scrolling starts
 
 byte scrollPos = 0;                 //Stores scrolling text position
@@ -173,46 +129,32 @@ char PlayBytes[17];
 
 void setup() {
   
-  #ifdef LCDSCREEN16x2
-    lcd.init();                     //Initialise LCD (16x2 type)
+  #ifdef LCDSCREEN20x4
+    lcd.init();                     //Initialise LCD (20x4 type)
     lcd.backlight();
     lcd.clear();
     lcd.createChar(0, SpecialChar);
   #endif
 
-  #ifdef RGBLCD
-    lcd.begin(16,2);
-    lcd.setRGB(colorR, colorG, colorB);
-    lcd.clear();
-    lcd.createChar(0, SpecialChar);
-  #endif
   
   #ifdef SERIALSCREEN
     Serial.begin(115200);
   #endif
-  
-  #ifdef OLED1306 
-     
-    delay(1000);  //Needed!
-    Wire.begin();
-    init_OLED();
-    delay(1500);              // Show logo
-    reset_display();           // Clear logo and load saved mode
 
-  #endif
 
-  #ifdef P8544
-    lcd.begin ();
-    analogWrite (backlight_pin, 20);
-    P8544_splash(); 
-  #endif
+  printtextF(PSTR("TZXDuino LCD20x4"),0);
+  printtextF(PSTR("@cgasper79"),1);
+  printtextF(PSTR("Starting.."),2);
+  for(int i = 0; i<20; i++){
+    lcd.setCursor(i, 3); // move cursor to 
+    lcd.write((byte)0);  // print the custom char at 
+  }
+  delay(2000);
 
-  
-  
   pinMode(chipSelect, OUTPUT);      //Setup SD card chipselect pin
   while (!sd.begin(chipSelect,SPI_SPEED)) {  
     //Start SD card and check it's working
-    printtextF(PSTR("No SD Card"),0);
+    printtextF(PSTR("No SD Card..."),3);
     delay(1000);
   } 
   
@@ -221,29 +163,20 @@ void setup() {
   
   setup_buttons();   
  
-  printtextF(PSTR("Starting.."),0);
-  delay(500);
-  
-  #ifdef LCDSCREEN16x2
+  #ifdef LCDSCREEN20x4
     lcd.clear();
   #endif
+    
 
-  #ifdef RGBLCD
-    lcd.clear();
-  #endif
-
-  #ifdef P8544
-    lcd.clear();
-  #endif
-       
   getMaxFile();                     //get the total number of files in the directory
   fileIndex=0;                      //move to the first file in the directory
   seekFile();                       
   loadEEPROM();
+  loadConfig();
 }
 
 void loop(void) {
-  
+
   if(start==1)
   {
     //TZXLoop only runs if a file is playing, and keeps the buffer full.
@@ -273,6 +206,7 @@ void loop(void) {
      timeDiff = millis();           // get current millisecond count
       
       if(button_play()) {
+        
         //Handle Play/Pause button
         if(start==0) {
           //If no file is play, start playback
@@ -283,21 +217,13 @@ void loop(void) {
           if (pauseOn == 0) {
             printtextF(PSTR("Paused "),0);
             Counter1();             
-            #ifdef P8544 
-              lcd.gotoRc(3,38);
-              lcd.bitmap(Paused, 1, 6);
-            #endif
-            
+
             pauseOn = 1;
             
           } else {
-           printtextF(PSTR("Playing"),0);
+           printtextF(PSTR("Playing >"),0);
            Counter1();
            
-            #ifdef P8544
-              lcd.gotoRc(3,38);
-              lcd.bitmap(Play, 1, 6);               
-            #endif
             
             pauseOn = 0;
           }
@@ -308,9 +234,10 @@ void loop(void) {
      if(button_root() && start==0){
       
        menuMode();
+       loadConfig();
        printtextF(PSTR(VERSION),0);
        //lcd_clearline(1);
-       printtextF(PSTR("                "),1);
+       printtextF(PSTR("                  "),1);
        scrollPos=0;
        scrollText(fileName);
        
@@ -401,20 +328,12 @@ void loop(void) {
         printtextF(PSTR("Paused "),0);
         Counter1();
         
-            #ifdef P8544 
-              lcd.gotoRc(3,38);
-              lcd.bitmap(Paused, 1, 6);
-            #endif
          pauseOn = 1;
        } 
        if(!motorState && pauseOn==1) {
-         printtextF(PSTR("Playing"),0);
+         printtextF(PSTR("Playing >"),0);
          Counter1();
          
-            #ifdef P8544
-              lcd.gotoRc(3,38);
-              lcd.bitmap(Play, 1, 6);              
-            #endif
             
          pauseOn = 0;
        }
@@ -496,15 +415,11 @@ void seekFile() {
   PlayBytes[0]='\0'; 
   if (isDir==1) {
     strcat_P(PlayBytes,PSTR(VERSION));
-    #ifdef P8544
-      printtext("                 ",3);
-    #endif
+    
   } else {
     //ltoa(filesize,PlayBytes,10);
-    strcat_P(PlayBytes,PSTR("Select File.."));
-    #ifdef P8544
-      printtext("                 ",3);
-    #endif
+    strcat_P(PlayBytes,PSTR("Select File...>"));
+  
   }
   printtext(PlayBytes,0);
 
@@ -519,10 +434,6 @@ void stopFile() {
     printtextF(PSTR("Stopped"),0);
     //lcd_clearline(0);
     //lcd.print(F("Stopped"));
-    #ifdef P8544
-      lcd.gotoRc(3,38);
-      lcd.bitmap(Stop, 1, 6);
-    #endif
     start=0;
   }
 }
@@ -542,24 +453,17 @@ void playFile() {
   }
   else
   {
-    printtextF(PSTR("Playing         "),0);    
+    printtextF(PSTR("Playing >       "),0);
+       
     scrollPos=0;
     if (PauseAtStart == false) pauseOn = 0;
     scrollText(fileName);
     currpct=100;
     lcdsegs=0;      
     TZXPlay(); 
-      #ifdef P8544
-        lcd.gotoRc(3,38);
-        lcd.bitmap(Play, 1, 6);
-      #endif
     start=1; 
     if (PauseAtStart == true) {
       printtextF(PSTR("Paused "),0);
-      #ifdef P8544
-        lcd.gotoRc(3,38);
-        lcd.bitmap(Play, 1, 6);
-      #endif
       pauseOn = 1;
       TZXPause();
     }
@@ -607,12 +511,12 @@ void changeDir() {
 
 void scrollText(char* text)
 {
-  #ifdef LCDSCREEN16x2
-  //Text scrolling routine.  Setup for 16x2 screen so will only display 16 chars
+  #ifdef LCDSCREEN20x4
+  //Text scrolling routine.  Setup for 20x4 screen so will only display 20 chars
   if(scrollPos<0) scrollPos=0;
-  char outtext[17];
+  char outtext[21];
   if(isDir) { outtext[0]= 0x3E; 
-    for(int i=1;i<16;i++)
+    for(int i=1;i<20;i++)
     {
       int p=i+scrollPos-1;
       if(p<strlen(text)) 
@@ -623,7 +527,7 @@ void scrollText(char* text)
       }
     }
   } else { 
-    for(int i=0;i<16;i++)
+    for(int i=0;i<20;i++)
     {
       int p=i+scrollPos;
       if(p<strlen(text)) 
@@ -634,113 +538,13 @@ void scrollText(char* text)
       }
     }
   }
-  outtext[16]='\0';
+  outtext[20]='\0';
   printtext(outtext,1);
   //lcd_clearline(1);
   //lcd.print(outtext);
   #endif
 
-  #ifdef RGBLCD
-  //Text scrolling routine.  Setup for 16x2 screen so will only display 16 chars
-  if(scrollPos<0) scrollPos=0;
-  char outtext[17];
-  if(isDir) { outtext[0]= 0x3E; 
-    for(int i=1;i<16;i++)
-    {
-      int p=i+scrollPos-1;
-      if(p<strlen(text)) 
-      {
-        outtext[i]=text[p];
-      } else {
-        outtext[i]='\0';
-      }
-    }
-  } else { 
-    for(int i=0;i<16;i++)
-    {
-      int p=i+scrollPos;
-      if(p<strlen(text)) 
-      {
-        outtext[i]=text[p];
-      } else {
-        outtext[i]='\0';
-      }
-    }
-  }
-  outtext[16]='\0';
-  printtext(outtext,1);
-  //lcd_clearline(1);
-  //lcd.print(outtext);
-  #endif
-
-  #ifdef OLED1306
-  //Text scrolling routine.  Setup for 16x2 screen so will only display 16 chars
-  if(scrollPos<0) scrollPos=0;
-  char outtext[17];
-  if(isDir) { outtext[0]= 0x3E; 
-    for(int i=1;i<16;i++)
-    {
-      int p=i+scrollPos-1;
-      if(p<strlen(text)) 
-      {
-        outtext[i]=text[p];
-      } else {
-        outtext[i]='\0';
-      }
-    }
-  } else { 
-    for(int i=0;i<16;i++)
-    {
-      int p=i+scrollPos;
-      if(p<strlen(text)) 
-      {
-        outtext[i]=text[p];
-      } else {
-        outtext[i]='\0';
-      }
-    }
-  }
-  outtext[16]='\0';
-  printtext(outtext,1);
-  //lcd_clearline(1);
-  //lcd.print(outtext);
-  #endif
-
-  #ifdef P8544
-  //Text scrolling routine.  Setup for 16x2 screen so will only display 16 chars
-  if(scrollPos<0) scrollPos=0;
-  char outtext[15];
-  if(isDir) { outtext[0]= 0x3E; 
-    for(int i=1;i<14;i++)
-    {
-      int p=i+scrollPos-1;
-      if(p<strlen(text)) 
-      {
-        outtext[i]=text[p];
-      } else {
-        outtext[i]='\0';
-      }
-    }
-  } else { 
-    for(int i=0;i<14;i++)
-    {
-      int p=i+scrollPos;
-      if(p<strlen(text)) 
-      {
-        outtext[i]=text[p];
-      } else {
-        outtext[i]='\0';
-      }
-    }
-  }
-  outtext[14]='\0';
-  printtext(outtext,1);
-  //lcd_clearline(1);
-  //lcd.print(outtext);
-  #endif
 }
-
-
 
 void printtextF(const char* text, int l) {  //Print text to screen. 
   
@@ -748,41 +552,13 @@ void printtextF(const char* text, int l) {  //Print text to screen.
   Serial.println(reinterpret_cast <const __FlashStringHelper *> (text));
   #endif
   
-  #ifdef LCDSCREEN16x2
+  #ifdef LCDSCREEN20x4
     lcd.setCursor(0,l);
-    lcd.print(F("                "));
-    lcd.setCursor(0,l);
-    lcd.print(reinterpret_cast <const __FlashStringHelper *> (text));
-  #endif
-
-  #ifdef RGBLCD
-    lcd.setCursor(0,l);
-    lcd.print(F("                "));
+    lcd.print(F("                    "));
     lcd.setCursor(0,l);
     lcd.print(reinterpret_cast <const __FlashStringHelper *> (text));
   #endif
 
- #ifdef OLED1306
-       char* space = PSTR("                ");
-       strncpy_P(lineclr, space, 16);
-      if ( l == 0 ) {
-        strncpy_P(line0, text, 16);
-        sendStrXY(lineclr,0,0);
-      } else {
-        strncpy_P(line1, text, 16);
-        sendStrXY(lineclr,0,1);
-      }
-      sendStrXY(line0,0,0);
-      sendStrXY(line1,0,1);
-  #endif
-
-  #ifdef P8544
-    lcd.setCursor(0,l);
-    lcd.print(F("              "));
-    lcd.setCursor(0,l);
-    lcd.print(reinterpret_cast <const __FlashStringHelper *> (text));
-  #endif 
-   
 }
 
 void printtext(char* text, int l) {  //Print text to screen. 
@@ -791,32 +567,32 @@ void printtext(char* text, int l) {  //Print text to screen.
   Serial.println(text);
   #endif
   
-  #ifdef LCDSCREEN16x2
+  #ifdef LCDSCREEN20x4
     lcd.setCursor(0,l);
-    lcd.print(F("                "));
-    lcd.setCursor(0,l);
-    lcd.print(text);
-  #endif
-
-  #ifdef RGBLCD
-    lcd.setCursor(0,l);
-    lcd.print(F("                "));
+    lcd.print(F("                    "));
     lcd.setCursor(0,l);
     lcd.print(text);
   #endif
-
-   #ifdef OLED1306
-      setXY(0,l);
-      sendStr("                ");
-      setXY(0,l);
-      sendStr(text);
-  #endif
-
-  #ifdef P8544
-    lcd.setCursor(0,l);
-    lcd.print(F("              "));
-    lcd.setCursor(0,l);
-    lcd.print(text);
-  #endif   
    
+}
+
+void loadConfig(){
+
+  lcd.setCursor(11,2);
+  if (FlipPolarity==false) lcd.print("Polar:Off");
+  if (FlipPolarity==true) lcd.print("Polar:On ");
+
+  lcd.setCursor(0,2);
+  if (PauseAtStart==false) lcd.print("Pause:Off");
+  if (PauseAtStart==true) lcd.print("Pause:On");
+
+  lcd.setCursor(0,3);
+  if(BAUDRATE==1200) lcd.print("Baud:1200");
+  if(BAUDRATE==2400) lcd.print("Baud:2400");
+  if(BAUDRATE==3600) lcd.print("Baud:3600");
+
+  lcd.setCursor(11,3);
+  if (uefTurboMode==false) lcd.print("Turbo:Off");
+  if (uefTurboMode==true) lcd.print("Turbo:On "); 
+  
 }
